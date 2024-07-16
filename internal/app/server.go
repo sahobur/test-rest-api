@@ -1,9 +1,11 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -13,8 +15,12 @@ import (
 )
 
 type httpReq struct {
-	Method string
-	URL    string
+	Method        string
+	URL           string
+	Host          string
+	ContentType   string
+	ContentLenght string
+	Body          string
 }
 
 func ServerStart(addr string) error {
@@ -46,14 +52,40 @@ func routeRequest(conn net.Conn) {
 
 	r := getHttpRequest(buffer)
 	paths := strings.Split(r.URL, "/")
-
-	fmt.Printf("%+v", paths)
-	log.Printf("method=%s url=%s\n", r.Method, r.URL)
+	fmt.Printf("req: %+v\n", r)
+	//
+	//fmt.Println("--------------------------------------------------------")
+	//fmt.Printf("method=%s url=%s\n", r.Method, r.URL)
+	//fmt.Printf("host=%s\n", r.Host)
+	//fmt.Printf("Content type=%s\n", r.ContentType)
+	//fmt.Printf("Content len=%s\n", r.ContentLenght)
+	//fmt.Printf("Data=%s\n", r.Body)
+	//fmt.Println("--------------------------------------------------------")
 
 	if !strings.EqualFold(paths[0], "account") {
 		_, err = conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 		log.Printf("unknoun url: %s", r.URL)
 		return
+	}
+
+	var a models.Amount
+	if len(r.Body) != 0 {
+		err = json.Unmarshal([]byte(r.Body), &a)
+		if err != nil {
+			log.Printf("error unmarshal %s", err)
+		}
+	}
+	fmt.Print(a)
+	if r.Method == http.MethodPost {
+		if paths[2] == "deposite" {
+			id, err := strconv.ParseInt(paths[1], 10, 64)
+			if err != nil {
+				log.Printf("error id format %s", err)
+				return
+			}
+			srv := services.NewAccountService(id)
+			srv.Deposite(a.Amount)
+		}
 	}
 
 	req, err := getApiCallData(r)
@@ -67,32 +99,53 @@ func routeRequest(conn net.Conn) {
 }
 
 func getHttpRequest(buf []byte) httpReq {
-	var req string
-	for _, b := range buf {
-		req = req + string(b)
+	var s string
+	var data [16]string
+	var body string
+	i := 0
+	startBodyIdx := 0
+	var cl string
+	for j, b := range buf {
+		s += string(b)
 		if b == 13 {
+			if strings.Contains(s, "-Length") {
+				sp := strings.Split(s, ":")
+				cl = strings.Trim(sp[1], " \n\r")
+				startBodyIdx = j + 4
+				break
+			}
+			data[i] = s
+		}
+	}
+
+	p := strings.Split(data[0], " ")
+	method := p[0]
+	url := strings.Trim(p[1], "/")
+	//fmt.Printf("start body %d", startBodyIdx)
+	for i = startBodyIdx; i < 1023; i++ {
+		body += string(buf[i])
+		if buf[i+1] == 0 {
 			break
 		}
 	}
-	p := strings.Split(req, " ")
-	method := p[0]
-	url := strings.Trim(p[1], "/")
 	return httpReq{
-		Method: method,
-		URL:    url,
+		Method:        method,
+		URL:           url,
+		ContentLenght: cl,
+		Body:          body,
 	}
 }
 
-func getApiCallData(r httpReq) (apiCallData, error) {
+func getApiCallData(r httpReq) (models.ApiCallData, error) {
 	paths := strings.Split(r.URL, "/")
 	if len(paths) == 1 {
-		return apiCallData{operation: models.Create}, nil
+		return models.ApiCallData{Operation: models.Create}, nil
 	}
 
 	var op models.OpType
 	accountID, err := strconv.ParseInt(paths[1], 10, 64)
 	if err != nil {
-		return apiCallData{}, fmt.Errorf("cant parse ID %w", err)
+		return models.ApiCallData{}, fmt.Errorf("cant parse ID %w", err)
 	}
 
 	switch paths[2] {
@@ -103,12 +156,13 @@ func getApiCallData(r httpReq) (apiCallData, error) {
 	case "balance":
 		op = models.GetBalance
 	}
-	return apiCallData{accountID: accountID, operation: op}, err
+	return models.ApiCallData{AccountID: accountID, Operation: op}, err
 }
 
-func handleReq(req apiCallData, conn net.Conn) {
-	switch req.operation {
+func handleReq(req models.ApiCallData, conn net.Conn) {
+	switch req.Operation {
 	case models.Deposite:
-		services.Deposite(req)
+		srv := services.NewAccountService(req.AccountID)
+		srv.Deposite(10)
 	}
 }

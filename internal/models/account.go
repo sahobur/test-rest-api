@@ -7,6 +7,10 @@ const (
 	Create     OpType = "create"
 )
 
+type Amount struct {
+	Amount float64 `json:"amount"`
+}
+
 type BankAccount interface {
 	Deposit(amount float64) error
 	Withdraw(amount float64) error
@@ -19,8 +23,8 @@ type Account struct {
 }
 
 type ApiCallData struct {
-	accountID int64
-	operation OpType
+	AccountID int64
+	Operation OpType
 }
 
 type OpType string
