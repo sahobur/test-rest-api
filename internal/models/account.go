@@ -11,15 +11,14 @@ type Amount struct {
 	Amount float64 `json:"amount"`
 }
 
-type BankAccount interface {
-	Deposit(amount float64) error
-	Withdraw(amount float64) error
-	GetBalance() float64
-}
-
 type Account struct {
 	ID      int64
 	Balance float64
+}
+
+type AccountUpdate struct {
+	ID    int64
+	Delta float64
 }
 
 type ApiCallData struct {

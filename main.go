@@ -11,10 +11,9 @@ const (
 	PORT = "8080"
 )
 
-var Accnt = map[int64]float64{111: 0.0, 112: 100.1, 222: 300}
-
 func main() {
-	err := app.ServerStart(fmt.Sprintf("%s:%s", HOST, PORT))
+	var Accnt = &map[int64]float64{111: 0.0, 112: 100.1, 222: 300}
+	err := app.ServerStart(fmt.Sprintf("%s:%s", HOST, PORT), Accnt)
 	if err != nil {
 		panic(err)
 	}

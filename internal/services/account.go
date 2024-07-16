@@ -4,27 +4,42 @@ import (
 	"awesomeProject/internal/models"
 )
 
-type AccountService struct {
+type Account struct {
 	Acc models.Account
+	Ch  chan models.AccountUpdate
 }
 
-func NewAccountService(accID int64) AccountService {
-	return AccountService{
+type BankAccount interface {
+	Deposite(amount float64) error
+	Withdraw(amount float64) error
+	GetBalance() float64
+}
+
+func NewAccountService(accID int64, ch chan models.AccountUpdate) Account {
+	return Account{
 		Acc: models.Account{
 			ID: accID,
 		},
+		Ch: ch,
 	}
 }
 
-func (r AccountService) Deposite(amount float64) error {
-	
+func (r Account) Deposite(amount float64) error {
+	r.Ch <- models.AccountUpdate{
+		ID:    r.Acc.ID,
+		Delta: amount,
+	}
 	return nil
 }
 
-func (r AccountService) Withdraw(amount float64) error {
+func (r Account) Withdraw(amount float64) error {
+	r.Ch <- models.AccountUpdate{
+		ID:    r.Acc.ID,
+		Delta: -amount,
+	}
 	return nil
 }
 
-func (r AccountService) GetBalance() float64 {
-	return 0
+func (r Account) GetBalance() float64 {
+	return r.Acc.Balance
 }

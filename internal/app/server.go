@@ -23,7 +23,7 @@ type httpReq struct {
 	Body          string
 }
 
-func ServerStart(addr string) error {
+func ServerStart(addr string, acct *map[int64]float64) error {
 	listen, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -37,11 +37,12 @@ func ServerStart(addr string) error {
 		if err != nil {
 			return err
 		}
-		go routeRequest(conn)
+		go routeRequest(conn, acct)
 	}
+
 }
 
-func routeRequest(conn net.Conn) {
+func routeRequest(conn net.Conn, acct *map[int64]float64) {
 	// incoming request
 	buffer := make([]byte, 1024)
 	_, err := conn.Read(buffer)
@@ -61,6 +62,7 @@ func routeRequest(conn net.Conn) {
 	//fmt.Printf("Content len=%s\n", r.ContentLenght)
 	//fmt.Printf("Data=%s\n", r.Body)
 	//fmt.Println("--------------------------------------------------------")
+	pchan := make(chan models.AccountUpdate)
 
 	if !strings.EqualFold(paths[0], "account") {
 		_, err = conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
@@ -83,8 +85,11 @@ func routeRequest(conn net.Conn) {
 				log.Printf("error id format %s", err)
 				return
 			}
-			srv := services.NewAccountService(id)
-			srv.Deposite(a.Amount)
+			srv := services.NewAccountService(id, pchan)
+			err = srv.Deposite(a.Amount)
+			if err != nil {
+				log.Printf("error deposite %s", err)
+			}
 		}
 	}
 
